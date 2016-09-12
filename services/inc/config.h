@@ -29,7 +29,7 @@
 #endif
 
 #if defined(DEBUG_BUILD) && !defined(LOG_INCLUDE_SOURCE_INFO)
-#define LOG_INCLUDE_SOURCE_INFO
+//#define LOG_INCLUDE_SOURCE_INFO
 #endif
 
 #define RESET_ON_CFOD                   1       // 1 Will do reset 0 will not
