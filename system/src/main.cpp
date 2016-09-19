@@ -614,7 +614,7 @@ void app_setup_and_loop(void)
         while (run) {
             app_loop(false);
         }
-        disconnect_cloud();
+        cloud_disconnect(true);
     }
 }
 
