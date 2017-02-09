@@ -92,7 +92,7 @@ CFLAGS += -MD -MP -MF $@.d
 CFLAGS += -DSPARK=1 -DPLATFORM_ID=3
 CFLAGS += -DDEBUG_BUILD
 
-CPPFLAGS += -std=gnu++11
+CPPFLAGS += -std=gnu++1z
 CPPFLAGS += -DCATCH_CONFIG_SFINAE
 
 # Collect all object and dep files
