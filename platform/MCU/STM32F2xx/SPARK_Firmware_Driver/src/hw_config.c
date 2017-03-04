@@ -309,6 +309,13 @@ static uint32_t Timer_Enable(TIM_TypeDef* TIMx)
   {
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM5, ENABLE);
   }
+#if PLATFORM_ID == 10
+  else if (TIMx == TIM8)
+  {
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM8, ENABLE);
+    clk = SystemCoreClock;
+  }
+#endif // PLATFORM_ID == 10
 
   return clk;
 }
@@ -342,8 +349,11 @@ static void Timer_Configure(TIM_TypeDef* TIMx, bool enable)
     {
         /* TIMx enable counter */
         TIM_Cmd(TIMx, ENABLE);
-
-        if (TIMx == TIM1 /*|| TIMx == TIM8 */) {
+#if PLATFORM_ID == 10
+        if (TIMx == TIM1 || TIMx == TIM8) {
+#else
+        if (TIMx == TIM1) {
+#endif // PLATFORM_ID == 10
             TIM_CtrlPWMOutputs(TIMx, ENABLE);
         }
     }
@@ -769,6 +779,7 @@ void sFLASH_SPI_Init(void)
 void sFLASH_CS_LOW(void)
 {
     GPIO_ResetBits(sFLASH_SPI_CS_GPIO_PORT, sFLASH_SPI_CS_GPIO_PIN);
+    asm("mov r2, r2");
 }
 
 /* Deselect sFLASH: Chip Select pin high */

@@ -55,7 +55,7 @@
 
 #ifndef SPARK_NO_CLOUD
 
-using particle::LEDCustomStatus;
+using particle::LEDStatus;
 
 int userVarType(const char *varKey);
 const void *getUserVar(const char *varKey);
@@ -257,7 +257,7 @@ void invokeEventHandler(uint16_t handlerInfoSize, FilteringEventHandler* handler
         // copy the buffers to dynamically allocated storage.
         String name(event_name);
         String data(event_data);
-        APPLICATION_THREAD_CONTEXT_ASYNC(invokeEventHandlerString(handlerInfoSize, handlerInfo, name, event_data, reserved));
+        APPLICATION_THREAD_CONTEXT_ASYNC(invokeEventHandlerString(handlerInfoSize, handlerInfo, name, data, reserved));
     }
 }
 
@@ -697,9 +697,10 @@ int Spark_Handshake(bool presence_announce)
             LOG(INFO,"spark/hardware/ota_chunk_size event");
             Particle.publish("spark/hardware/ota_chunk_size", buf, 60, PRIVATE);
         }
-        if (system_mode()==SAFE_MODE)
+        if (system_mode()==SAFE_MODE) {
             LOG(INFO,"Send spark/device/safemode event");
             Particle.publish("spark/device/safemode","", 60, PRIVATE);
+        }
 #if defined(SPARK_SUBSYSTEM_EVENT_NAME)
         if (!HAL_core_subsystem_version(buf, sizeof (buf)) && *buf)
         {
@@ -754,10 +755,10 @@ inline bool Spark_Communication_Loop(void)
 namespace {
 
 // LED status for the test signal that can be triggered from the cloud
-class LEDCloudSignalStatus: public LEDCustomStatus {
+class LEDCloudSignalStatus: public LEDStatus {
 public:
     explicit LEDCloudSignalStatus(LEDPriority priority) :
-            LEDCustomStatus(priority),
+            LEDStatus(LED_PATTERN_CUSTOM, priority),
             ticks_(0),
             index_(0) {
         updateColor();
