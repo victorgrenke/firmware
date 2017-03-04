@@ -33,7 +33,7 @@ CPPSRC += $(TARGET_SRC_PATH)/protocol_defs.cpp
 # ASM source files included in this build.
 ASRC +=
 
-CPPFLAGS += -std=gnu++11
+CPPFLAGS += -std=gnu++1z
 
 CFLAGS += -DMBEDTLS_CONFIG_FILE="<mbedtls_config.h>"
 
