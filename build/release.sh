@@ -1,9 +1,4 @@
-# if [ $1 -eq 6 ] || [ $1 -eq 8 ]; then
-	VERSION="0.6.0"
-# else if [ $1 -eq 10 ]; then
-# 	VERSION="0.6.0"
-# 	fi
-# fi
+VERSION="0.6.2"
 
 function release_file()
 {

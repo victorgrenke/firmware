@@ -27,7 +27,6 @@
 #include "dsakeygen.h"
 #include "eckeygen.h"
 #include <cstring>
-#include "ledcontrol.h"
 #include "parse_server_address.h"
 #include "spark_macros.h"
 #include "bootloader.h"
@@ -35,6 +34,7 @@
 #include "ota_flash_hal_stm32f2xx.h"
 #include "spark_protocol_functions.h"
 #include "hal_platform.h"
+#include "hal_event.h"
 #include "service_debug.h"
 
 #define OTA_CHUNK_SIZE          512
@@ -217,7 +217,7 @@ int HAL_FLASH_Update(const uint8_t *pBuffer, uint32_t address, uint32_t length, 
     return FLASH_Update(pBuffer, address, length);
 }
 
-hal_update_complete_t HAL_FLASH_End(void* reserved)
+hal_update_complete_t HAL_FLASH_End(hal_module_t* mod)
 {
     hal_module_t module;
     hal_update_complete_t result = HAL_UPDATE_ERROR;
@@ -251,6 +251,10 @@ hal_update_complete_t HAL_FLASH_End(void* reserved)
     else
     {
     		WARN("OTA module not applied");
+    }
+    if (mod)
+    {
+        memcpy(mod, &module, sizeof(hal_module_t));
     }
     return result;
 }
@@ -325,8 +329,7 @@ int HAL_FLASH_Read_CorePrivateKey(uint8_t *keyBuffer, private_key_generation_t* 
     		copy_dct(keyBuffer, DCT_DEVICE_PRIVATE_KEY_OFFSET, EXTERNAL_FLASH_CORE_PRIVATE_KEY_LENGTH);
     genspec->had_key = (*keyBuffer!=0xFF); // uninitialized
     if (genspec->gen==PRIVATE_KEY_GENERATE_ALWAYS || (!genspec->had_key && genspec->gen!=PRIVATE_KEY_GENERATE_NEVER)) {
-        // todo - this couples the HAL with the system. Use events instead.
-        SPARK_LED_FADE = false;
+        hal_notify_event(HAL_EVENT_GENERATE_DEVICE_KEY, HAL_EVENT_FLAG_START, nullptr);
         int error  = 1;
 #if HAL_PLATFORM_CLOUD_UDP
         if (udp)
@@ -345,6 +348,7 @@ int HAL_FLASH_Read_CorePrivateKey(uint8_t *keyBuffer, private_key_generation_t* 
 			fetch_device_public_key();
             generated = true;
         }
+        hal_notify_event(HAL_EVENT_GENERATE_DEVICE_KEY, HAL_EVENT_FLAG_STOP, nullptr);
     }
     genspec->generated_key = generated;
     return 0;

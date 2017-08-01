@@ -10,6 +10,9 @@ extern "C" {
 
 DYNALIB_TABLE_EXTERN(system_module_part3);
 DYNALIB_TABLE_EXTERN(hal_usb);
+DYNALIB_TABLE_EXTERN(hal_cellular);
+DYNALIB_TABLE_EXTERN(hal_socket);
+DYNALIB_TABLE_EXTERN(hal_bootloader);
 
 /**
  * The order of these declarations MUST MATCH the order of declarations in
@@ -18,5 +21,8 @@ DYNALIB_TABLE_EXTERN(hal_usb);
 extern "C" __attribute__((externally_visible)) const void* const system_part3_module[] = {
     DYNALIB_TABLE_NAME(system_module_part3),
     DYNALIB_TABLE_NAME(hal_usb),
+    DYNALIB_TABLE_NAME(hal_cellular),
+    DYNALIB_TABLE_NAME(hal_socket),
+    DYNALIB_TABLE_NAME(hal_bootloader)
 };
 

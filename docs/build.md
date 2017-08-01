@@ -371,7 +371,7 @@ External Particle libraries can be compiled and linked with firmware. To add one
 ```
 cd /particle/libs/neopixel
 rm -rf firmware/examples
-``
+```
 
 3. Rename `firmware` to be the same as the library name. 
 ```
@@ -469,7 +469,6 @@ USE_SWD=y
 
 and perform a clean build. For more details on SWD-only debugging
 see https://github.com/spark/firmware/pull/337
-
 
 ## Compilation without Cloud Support
 

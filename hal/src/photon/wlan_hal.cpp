@@ -39,6 +39,8 @@
 #include "dct_hal.h"
 #include "concurrent_hal.h"
 #include "wwd_resources.h"
+#include "dct.h"
+#include "wwd_management.h"
 
 LOG_SOURCE_CATEGORY("hal.wlan");
 
@@ -69,6 +71,12 @@ wiced_country_code_t fetch_country_code()
         result = WICED_COUNTRY_JAPAN;
     }
     return result;
+}
+
+bool isWiFiPowersaveClockDisabled() {
+    const uint8_t* data = (const uint8_t*)dct_read_app_data(DCT_RADIO_FLAGS_OFFSET);
+    uint8_t current = (*data);
+    return ((current&3) == 0x2);
 }
 
 bool initialize_dct(platform_dct_wifi_config_t* wifi_config, bool force=false)
@@ -296,7 +304,13 @@ int wlan_select_antenna(WLanSelectAntenna_TypeDef antenna)
 
 wlan_result_t wlan_activate()
 {
-    wlan_initialize_dct();
+#if PLATFORM_ID==PLATFORM_P1
+	if (isWiFiPowersaveClockDisabled()) {
+		wwd_set_wlan_sleep_clock_enabled(WICED_FALSE);
+	}
+#endif
+
+	wlan_initialize_dct();
     wlan_result_t result = wiced_wlan_connectivity_init();
     if (!result)
         wiced_network_register_link_callback(HAL_NET_notify_connected, HAL_NET_notify_disconnected,
@@ -308,6 +322,13 @@ wlan_result_t wlan_activate()
 wlan_result_t wlan_deactivate()
 {
     wlan_disconnect_now();
+    // FIXME:
+    // This was required for PR #1125 to reduce Wi-Fi power completely for Sleep stop mode
+    // however it introduced a new connectivity bug in LwIP that was unresolved in commit 87892a3837d4,
+    // which was reverted in commit 6b78d7662f62.  WICED should be updated to pull in a newer version of LwIP
+    // before this change is attempted again.
+    // wiced_result_t result = wiced_wlan_connectivity_deinit();
+    // return result;
     return 0;
 }
 

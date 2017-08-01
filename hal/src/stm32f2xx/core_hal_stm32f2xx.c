@@ -51,6 +51,12 @@
 #include "usb_hal.h"
 #include "usart_hal.h"
 #include "deviceid_hal.h"
+#include "pinmap_impl.h"
+
+#if PLATFORM_ID==PLATFORM_P1
+#include "wwd_management.h"
+#include "wlan_hal.h"
+#endif
 
 #define STOP_MODE_EXIT_CONDITION_PIN 0x01
 #define STOP_MODE_EXIT_CONDITION_RTC 0x02
@@ -188,6 +194,8 @@ typedef enum Feature_Flag {
 static Last_Reset_Info last_reset_info = { RESET_REASON_NONE, 0 };
 
 /* Private function prototypes -----------------------------------------------*/
+extern uint32_t HAL_Interrupts_Pin_IRQn(pin_t pin);
+
 void (*HAL_TIM1_Handler)(void);
 void (*HAL_TIM3_Handler)(void);
 void (*HAL_TIM4_Handler)(void);
@@ -282,7 +290,6 @@ static bool Read_Feature_Flag(uint32_t flag)
 }
 
 /* Extern variables ----------------------------------------------------------*/
-extern __IO uint16_t BUTTON_DEBOUNCED_TIME[];
 
 
 /*******************************************************************************
@@ -314,6 +321,9 @@ void HAL_Core_Config(void)
 #if PLATFORM_ID==8 // Additional pins for P1
     for (pin_t pin=24; pin<=29; pin++)
         HAL_Pin_Mode(pin, INPUT);
+    if (isWiFiPowersaveClockDisabled()) {
+        HAL_Pin_Mode(30, INPUT); // Wi-Fi Powersave clock is disabled, default to INPUT
+    }
 #endif
 #if PLATFORM_ID==10 // Additional pins for Electron
     for (pin_t pin=24; pin<=35; pin++)
@@ -331,6 +341,7 @@ void HAL_Core_Config(void)
     Load_SystemFlags();
 #endif
 
+    // TODO: Use current LED theme
     LED_SetRGBColor(RGB_COLOR_WHITE);
     LED_On(LED_RGB);
 
@@ -425,6 +436,10 @@ bool HAL_Core_Mode_Button_Pressed(uint16_t pressedMillisDuration)
     {
         pressedState = true;
     }
+    if(BUTTON_GetDebouncedTime(BUTTON1_MIRROR) >= pressedMillisDuration)
+    {
+        pressedState = true;
+    }
 
     return pressedState;
 }
@@ -432,17 +447,29 @@ bool HAL_Core_Mode_Button_Pressed(uint16_t pressedMillisDuration)
 /**
  * Force the button in the unpressed state.
  */
-void HAL_Core_Mode_Button_Reset(void)
+void HAL_Core_Mode_Button_Reset(uint16_t button)
 {
-    /* Disable TIM2 CC1 Interrupt */
-    TIM_ITConfig(TIM2, TIM_IT_CC1, DISABLE);
+    HAL_Buttons[button].debounce_time = 0x00;
 
-    BUTTON_DEBOUNCED_TIME[BUTTON1] = 0x00;
+    if (HAL_Buttons[BUTTON1].active + HAL_Buttons[BUTTON1_MIRROR].active == 0) {
+        /* Disable TIM2 CC1 Interrupt */
+        TIM_ITConfig(TIM2, TIM_IT_CC1, DISABLE);
+    }
 
-    HAL_Notify_Button_State(BUTTON1, false);
+    HAL_Notify_Button_State((Button_TypeDef)button, false);
 
-    /* Enable BUTTON1 Interrupt */
-    BUTTON_EXTI_Config(BUTTON1, ENABLE);
+    /* Enable Button Interrupt */
+    if (button != BUTTON1_MIRROR) {
+        BUTTON_EXTI_Config((Button_TypeDef)button, ENABLE);
+    } else {
+        HAL_InterruptExtraConfiguration irqConf = {0};
+        irqConf.version = HAL_INTERRUPT_EXTRA_CONFIGURATION_VERSION_2;
+        irqConf.IRQChannelPreemptionPriority = 0;
+        irqConf.IRQChannelSubPriority = 0;
+        irqConf.keepHandler = 1;
+        irqConf.keepPriority = 1;
+        HAL_Interrupts_Attach(HAL_Buttons[button].hal_pin, NULL, NULL, HAL_Buttons[button].interrupt_mode, &irqConf);
+    }
 
 }
 
@@ -766,17 +793,21 @@ void SysTickOverride(void)
  * @param  None
  * @retval None
  */
-void Handle_Mode_Button_EXTI_irq(void)
+void Handle_Mode_Button_EXTI_irq(Button_TypeDef button)
 {
-    if (EXTI_GetITStatus(BUTTON1_EXTI_LINE) != RESET)
+    if (button == BUTTON1_MIRROR || EXTI_GetITStatus(HAL_Buttons[button].exti_line) != RESET)
     {
         /* Clear the EXTI line pending bit (cleared in WICED GPIO IRQ handler) */
-        EXTI_ClearITPendingBit(BUTTON1_EXTI_LINE);
+        EXTI_ClearITPendingBit(HAL_Buttons[button].exti_line);
 
-        BUTTON_DEBOUNCED_TIME[BUTTON1] = 0x00;
+        HAL_Buttons[button].debounce_time = 0x00;
+        HAL_Buttons[button].active = 1;
 
         /* Disable BUTTON1 Interrupt */
-        BUTTON_EXTI_Config(BUTTON1, DISABLE);
+        if (button != BUTTON1_MIRROR)
+            BUTTON_EXTI_Config(button, DISABLE);
+        else
+            HAL_Interrupts_Detach_Ext(HAL_Buttons[button].hal_pin, 1, NULL);
 
         /* Enable TIM2 CC1 Interrupt */
         TIM_ITConfig(TIM2, TIM_IT_CC1, ENABLE);
@@ -820,18 +851,34 @@ void TIM2_irq(void)
 {
     if (TIM_GetITStatus(TIM2, TIM_IT_CC1) != RESET)
     {
-        if (BUTTON_GetState(BUTTON1) == BUTTON1_PRESSED)
+        if (HAL_Buttons[BUTTON1].active && BUTTON_GetState(BUTTON1) == BUTTON1_PRESSED)
         {
-            if (!BUTTON_DEBOUNCED_TIME[BUTTON1])
+            if (!HAL_Buttons[BUTTON1].debounce_time)
             {
-            BUTTON_DEBOUNCED_TIME[BUTTON1] += BUTTON_DEBOUNCE_INTERVAL;
+                HAL_Buttons[BUTTON1].debounce_time += BUTTON_DEBOUNCE_INTERVAL;
                 HAL_Notify_Button_State(BUTTON1, true);
+            }
+            HAL_Buttons[BUTTON1].debounce_time += BUTTON_DEBOUNCE_INTERVAL;
         }
-            BUTTON_DEBOUNCED_TIME[BUTTON1] += BUTTON_DEBOUNCE_INTERVAL;
-        }
-        else
+        else if (HAL_Buttons[BUTTON1].active)
         {
-            HAL_Core_Mode_Button_Reset();
+            HAL_Buttons[BUTTON1].active = 0;
+            HAL_Core_Mode_Button_Reset(BUTTON1);
+        }
+
+        if (HAL_Buttons[BUTTON1_MIRROR].port && HAL_Buttons[BUTTON1_MIRROR].active &&
+            BUTTON_GetState(BUTTON1_MIRROR) == (HAL_Buttons[BUTTON1_MIRROR].interrupt_mode == RISING ? 1 : 0)) {
+            if (!HAL_Buttons[BUTTON1_MIRROR].debounce_time)
+            {
+                HAL_Buttons[BUTTON1_MIRROR].debounce_time += BUTTON_DEBOUNCE_INTERVAL;
+                HAL_Notify_Button_State(BUTTON1_MIRROR, true);
+            }
+            HAL_Buttons[BUTTON1_MIRROR].debounce_time += BUTTON_DEBOUNCE_INTERVAL;
+        }
+        else if (HAL_Buttons[BUTTON1_MIRROR].port && HAL_Buttons[BUTTON1_MIRROR].active)
+        {
+            HAL_Buttons[BUTTON1_MIRROR].active = 0;
+            HAL_Core_Mode_Button_Reset(BUTTON1_MIRROR);
         }
     }
 
@@ -1170,6 +1217,21 @@ int HAL_Feature_Set(HAL_Feature feature, bool enabled)
             return 0;
         }
 
+#if PLATFORM_ID==PLATFORM_P1
+        case FEATURE_WIFI_POWERSAVE_CLOCK:
+        {
+            wwd_set_wlan_sleep_clock_enabled(enabled);
+            const uint8_t* data = (const uint8_t*)dct_read_app_data(DCT_RADIO_FLAGS_OFFSET);
+            uint8_t current = (*data);
+            current &= 0xFC;
+            if (!enabled) {
+                current |= 2;   // 0bxxxxxx10 to disable the clock, any other value to enable it.
+            }
+            dct_write_app_data(&current, DCT_RADIO_FLAGS_OFFSET, 1);
+        }
+#endif
+
+
     }
     return -1;
 }
@@ -1204,6 +1266,270 @@ bool HAL_Feature_Get(HAL_Feature feature)
         }
     }
     return false;
+}
+
+void HAL_Core_Mode_Button_Mirror_Pressed(void* param) {
+    Handle_Mode_Button_EXTI_irq(BUTTON1_MIRROR);
+}
+
+static void BUTTON_Mirror_Init() {
+    if (HAL_Buttons[BUTTON1_MIRROR].port) {
+        PinMode pinMode = INPUT_PULLUP;
+        switch(HAL_Buttons[BUTTON1_MIRROR].interrupt_mode)
+        {
+        case RISING:
+            pinMode = INPUT_PULLDOWN;
+            break;
+        case FALLING:
+            pinMode = INPUT_PULLUP;
+            break;
+        }
+
+        int32_t state = HAL_disable_irq();
+        HAL_Pin_Mode(HAL_Buttons[BUTTON1_MIRROR].hal_pin, pinMode);
+        HAL_Interrupts_Attach(HAL_Buttons[BUTTON1_MIRROR].hal_pin, HAL_Core_Mode_Button_Mirror_Pressed, NULL, HAL_Buttons[BUTTON1_MIRROR].interrupt_mode, NULL);
+        if (HAL_Buttons[BUTTON1_MIRROR].exti_line == HAL_Buttons[BUTTON1].exti_line) {
+            HAL_Buttons[BUTTON1].exti_port_source = HAL_Buttons[BUTTON1_MIRROR].exti_port_source;
+            HAL_Buttons[BUTTON1].exti_pin_source = HAL_Buttons[BUTTON1_MIRROR].exti_pin_source;
+            HAL_Buttons[BUTTON1].port = HAL_Buttons[BUTTON1_MIRROR].port;
+        }
+        HAL_enable_irq(state);
+    }
+}
+
+static void BUTTON_Mirror_Persist(button_config_t* conf) {
+    const button_config_t* saved_config = (const button_config_t*)dct_read_app_data(DCT_MODE_BUTTON_MIRROR_OFFSET);
+
+    if (conf) {
+        if (saved_config->active == 0xFF || memcmp((void*)conf, (void*)saved_config, sizeof(button_config_t)))
+        {
+            dct_write_app_data((void*)conf, DCT_MODE_BUTTON_MIRROR_OFFSET, sizeof(button_config_t));
+        }
+    } else {
+        if (saved_config->active != 0xFF) {
+            button_config_t tmp;
+            memset((void*)&tmp, 0xff, sizeof(button_config_t));
+            dct_write_app_data((void*)&tmp, DCT_MODE_BUTTON_MIRROR_OFFSET, sizeof(button_config_t));
+        }
+    }
+}
+
+void HAL_Core_Button_Mirror_Pin_Disable(uint8_t bootloader, uint8_t button, void* reserved) {
+    (void)button; // unused
+    int32_t state = HAL_disable_irq();
+    if (HAL_Buttons[BUTTON1_MIRROR].port) {
+        HAL_Interrupts_Detach_Ext(HAL_Buttons[BUTTON1_MIRROR].hal_pin, 1, NULL);
+        HAL_Buttons[BUTTON1_MIRROR].active = 0;
+        HAL_Buttons[BUTTON1_MIRROR].port = 0;
+    }
+    HAL_enable_irq(state);
+
+    if (bootloader) {
+        BUTTON_Mirror_Persist(NULL);
+    }
+}
+
+static inline uint32_t Gpio_Peripheral_To_Port_Source(GPIO_TypeDef* gpio)
+{
+    switch((uint32_t)gpio) {
+        case (uint32_t)GPIOA:
+            return 0;
+        case (uint32_t)GPIOB:
+            return 1;
+        case (uint32_t)GPIOC:
+            return 2;
+        case (uint32_t)GPIOD:
+            return 3;
+    }
+
+    return 0;
+}
+
+static inline uint32_t Gpio_Peripheral_To_Clk(GPIO_TypeDef* gpio) {
+    switch((uint32_t)gpio) {
+        case (uint32_t)GPIOA:
+            return RCC_AHB1Periph_GPIOA;
+        case (uint32_t)GPIOB:
+            return RCC_AHB1Periph_GPIOB;
+        case (uint32_t)GPIOC:
+            return RCC_AHB1Periph_GPIOC;
+        case (uint32_t)GPIOD:
+            return RCC_AHB1Periph_GPIOD;
+    }
+
+    return 0;
+}
+
+static inline uint32_t Tim_Peripheral_To_Af(TIM_TypeDef* tim) {
+    switch((uint32_t)tim) {
+        case (uint32_t)TIM1:
+            return GPIO_AF_TIM1;
+        case (uint32_t)TIM2:
+            return GPIO_AF_TIM2;
+        case (uint32_t)TIM3:
+            return GPIO_AF_TIM3;
+        case (uint32_t)TIM4:
+            return GPIO_AF_TIM4;
+        case (uint32_t)TIM5:
+            return GPIO_AF_TIM5;
+#if PLATFORM_ID == 10
+        case (uint32_t)TIM8:
+            return GPIO_AF_TIM8;
+#endif // PLATFORM_ID == 10
+    }
+
+    return 0;
+}
+
+void HAL_Core_Button_Mirror_Pin(uint16_t pin, InterruptMode mode, uint8_t bootloader, uint8_t button, void *reserved) {
+    (void)button; // unused
+    STM32_Pin_Info* pinmap = HAL_Pin_Map();
+    if (pin > TOTAL_PINS)
+        return;
+
+    if (mode != RISING && mode != FALLING)
+        return;
+
+    uint8_t gpio_port_source = Gpio_Peripheral_To_Port_Source(pinmap[pin].gpio_peripheral);
+    uint32_t gpio_clk = Gpio_Peripheral_To_Clk(pinmap[pin].gpio_peripheral);
+
+    button_config_t conf = {
+        .port = pinmap[pin].gpio_peripheral,
+        .pin = pinmap[pin].gpio_pin,
+        .hal_pin = pin,
+        .debounce_time = 0,
+        .interrupt_mode = mode,
+
+        .exti_line = pinmap[pin].gpio_pin,
+        .exti_pin_source = pinmap[pin].gpio_pin_source,
+        .exti_port_source = gpio_port_source,
+        .exti_trigger = mode == RISING ? EXTI_Trigger_Rising : EXTI_Trigger_Falling
+    };
+
+    HAL_Buttons[BUTTON1_MIRROR] = conf;
+
+    BUTTON_Mirror_Init();
+
+    if (pinmap[pin].gpio_pin == HAL_Buttons[BUTTON1].pin) {
+        LOG(WARN, "Pin %d shares the same EXTI as SETUP/MODE button", pin);
+        BUTTON_Mirror_Persist(NULL);
+        return;
+    }
+
+    if (!bootloader) {
+        BUTTON_Mirror_Persist(NULL);
+        return;
+    }
+
+    // Construct button_config_t for bootloader
+    button_config_t bootloader_conf = {
+        .active = 0xAA,
+        .port = pinmap[pin].gpio_peripheral,
+        .pin = pinmap[pin].gpio_pin,
+        .clk = gpio_clk,
+        .mode = GPIO_Mode_IN,
+        .pupd = mode == RISING ? GPIO_PuPd_DOWN : GPIO_PuPd_UP,
+        .debounce_time = 0xBBCC,
+
+        .exti_line = pinmap[pin].gpio_pin,
+        .exti_port_source = gpio_port_source,
+        .exti_pin_source = pinmap[pin].gpio_pin_source,
+        .exti_irqn = HAL_Interrupts_Pin_IRQn(pin),
+        .exti_irq_prio = HAL_Buttons[BUTTON1].exti_irq_prio,
+        .exti_trigger = mode == RISING ? EXTI_Trigger_Rising : EXTI_Trigger_Falling
+    };
+
+    BUTTON_Mirror_Persist(&bootloader_conf);
+}
+
+static void LED_Mirror_Persist(uint8_t led, led_config_t* conf) {
+    const size_t offset = DCT_LED_MIRROR_OFFSET + ((led - LED_MIRROR_OFFSET) * sizeof(led_config_t));
+    const led_config_t* saved_config = (const led_config_t*)dct_read_app_data(offset);
+
+    if (conf) {
+        if (saved_config->version == 0xFF || memcmp((void*)conf, (void*)saved_config, sizeof(led_config_t)))
+        {
+            dct_write_app_data((void*)conf, offset, sizeof(led_config_t));
+        }
+    } else {
+        if (saved_config->version != 0xFF) {
+            led_config_t tmp;
+            memset((void*)&tmp, 0xff, sizeof(led_config_t));
+            dct_write_app_data((void*)&tmp, offset, sizeof(led_config_t));
+        }
+    }
+}
+
+void HAL_Core_Led_Mirror_Pin_Disable(uint8_t led, uint8_t bootloader, void* reserved)
+{
+    int32_t state = HAL_disable_irq();
+    led_config_t* ledc = HAL_Led_Get_Configuration(led, NULL);
+    if (ledc->is_active) {
+        ledc->is_active = 0;
+        HAL_Pin_Mode(ledc->hal_pin, INPUT);
+    }
+    HAL_enable_irq(state);
+
+    if (bootloader) {
+        LED_Mirror_Persist(led, NULL);
+    }
+}
+
+void HAL_Core_Led_Mirror_Pin(uint8_t led, pin_t pin, uint32_t flags, uint8_t bootloader, void* reserved)
+{
+    if (pin > TOTAL_PINS)
+        return;
+
+    STM32_Pin_Info* pinmap = HAL_Pin_Map();
+
+    if (!pinmap[pin].timer_peripheral)
+        return;
+
+    // NOTE: `flags` currently only control whether the LED state should be inverted
+    // NOTE: All mirrored LEDs are currently PWM
+
+    led_config_t conf = {
+        .version = 0x01,
+        .port = pinmap[pin].gpio_peripheral,
+        .pin = pinmap[pin].gpio_pin,
+        .hal_pin = pin,
+        .hal_mode = AF_OUTPUT_PUSHPULL,
+        .pin_source = pinmap[pin].gpio_pin_source,
+        .af = 0,
+        .tim_peripheral = 0,
+        .tim_channel = 0,
+        .is_active = 1,
+        .is_hal_pin = 1,
+        .is_inverted = flags & 1,
+        .is_pwm = 1
+    };
+
+    int32_t state = HAL_disable_irq();
+    HAL_Led_Init(led, &conf, NULL);
+    HAL_enable_irq(state);
+
+    if (!bootloader) {
+        LED_Mirror_Persist(led, NULL);
+        return;
+    }
+
+    led_config_t bootloader_conf = {
+        .version = 0x01,
+        .port = pinmap[pin].gpio_peripheral,
+        .pin = pinmap[pin].gpio_pin,
+        .clk = Gpio_Peripheral_To_Clk(pinmap[pin].gpio_peripheral),
+        .mode = GPIO_Mode_AF,
+        .pin_source = pinmap[pin].gpio_pin_source,
+        .af = Tim_Peripheral_To_Af(pinmap[pin].timer_peripheral),
+        .tim_peripheral = pinmap[pin].timer_peripheral,
+        .tim_channel = pinmap[pin].timer_ch,
+        .is_active = 1,
+        .is_hal_pin = 0,
+        .is_inverted = flags & 1,
+        .is_pwm = 1
+    };
+
+    LED_Mirror_Persist(led, &bootloader_conf);
 }
 
 #if HAL_PLATFORM_CLOUD_UDP

@@ -24,6 +24,7 @@
 #define SPARK_WIRING_SYSTEM_H
 #include "spark_wiring_ticks.h"
 #include "spark_wiring_string.h"
+#include "spark_wiring_platform.h"
 #include "spark_wiring_version.h"
 #include "system_mode.h"
 #include "system_update.h"
@@ -68,6 +69,11 @@ private:
 const SleepNetworkFlag SLEEP_NETWORK_OFF(SystemSleepNetwork::Off);
 const SleepNetworkFlag SLEEP_NETWORK_STANDBY(SystemSleepNetwork::Standby);
 
+#if Wiring_LogConfig
+enum LoggingFeature {
+    FEATURE_CONFIGURABLE_LOGGING = 1
+};
+#endif
 
 class SystemClass {
 public:
@@ -199,6 +205,10 @@ public:
         return HAL_Feature_Set(feature, false);
     }
 
+#if Wiring_LogConfig
+    bool enableFeature(LoggingFeature feature);
+#endif
+
     String version()
     {
         SystemVersionInfo info;
@@ -279,6 +289,16 @@ public:
         uint32_t data = 0;
         HAL_Core_Get_Last_Reset_Info(nullptr, &data, nullptr);
         return data;
+    }
+
+    void buttonMirror(pin_t pin, InterruptMode mode, bool bootloader=false) const
+    {
+        HAL_Core_Button_Mirror_Pin(pin, mode, (uint8_t)bootloader, 0, NULL);
+    }
+
+    void disableButtonMirror(bool bootloader=true) const
+    {
+        HAL_Core_Button_Mirror_Pin_Disable((uint8_t)bootloader, 0, NULL);
     }
 
 private:

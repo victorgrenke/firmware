@@ -1,3 +1,92 @@
+## 0.6.2 (same as 0.6.2-rc.2)
+
+### FEATURES
+
+- [[PR #1311]](https://github.com/spark/firmware/pull/1311) `[Implements CH1537] [Electron]` Added support for Twilio SIMs by default in system firmware.
+
+### BUG FIX
+
+- [[PR #1310]](https://github.com/spark/firmware/pull/1310) Fixes a error when `<algorithm>` has already been included before the `math.h` header. Now we only include `math.h` when Arduino compatibility is requested. (math.h was not included in 0.6.0).
+
+## 0.6.2-rc.1
+
+### ENHANCEMENT / BUG FIX
+
+- [[PR #1283]](https://github.com/spark/firmware/pull/1283) [[Implements #1278]](https://github.com/spark/firmware/issues/1278) Restores 0.6.0-style Arduino compatibility by default, full Arduino compatibility when including Arduino.h
+
+## 0.6.1 (same as 0.6.1-rc.2)
+
+### FEATURES
+
+- [[PR #1225]](https://github.com/spark/firmware/pull/1225) [Photon/P1/Electron] Added support for custom LED colors in bootloader v11 (Safe Mode, DFU Mode, Firmware Reset).
+- [[PR #1227]](https://github.com/spark/firmware/pull/1227) [[Implements #961]](https://github.com/spark/firmware/issues/961) [Electron] Added new API for hostname IP address lookup `IPAddress ip = Cellular.resolve(hostname)`
+
+### ENHANCEMENTS
+
+- [[PR #1216]](https://github.com/spark/firmware/pull/1216) Improved Arduino Compatibility (now supported by default, added PARTICLE_NO_ARDUINO_COMPATIBILITY=y command line option for disabling)
+- [[PR #1217]](https://github.com/spark/firmware/pull/1217) Added Windows, Mac command, & Unix/Linux meta USB keyboard scancode definitions.
+- [[PR #1224]](https://github.com/spark/firmware/pull/1224) Allow the compiler to garbage collect USBKeyboard and USBMouse implementations if they are not used in user code, saving flash space.
+- [[PR #1225]](https://github.com/spark/firmware/pull/1225) [Photon/P1/Electron] Combined `LEDStatus` and `LEDCustomStatus` into a single class -> `LEDStatus`
+
+### BUG FIXES
+
+- [[PR #1221]](https://github.com/spark/firmware/pull/1221) [[Fixes #1220]](https://github.com/spark/firmware/issues/1220) [Electron] TIM8 PWM pins (B0, B1) did not work correctly in bootloader with `RGB.mirrorTo()`
+- [[PR #1222]](https://github.com/spark/firmware/pull/1222) Fixed bug in `String(const char* str, int len)` constructor when the string is longer than the specified length.
+- [[PR #1225]](https://github.com/spark/firmware/pull/1225) [Photon/P1/Electron] Fixed LED indication shown during device key generation (blinking white) introduced in 0.6.1-rc.1
+- [[PR #1226]](https://github.com/spark/firmware/pull/1226) [[Fixes #1181]](https://github.com/spark/firmware/issues/1181) [Photon/P1/Core] Process TCP `DESCRIBE` properly and return only one response, SYSTEM, APPLICATION, or COMBINED (ALL) describe message.  Was sending separate SYSTEM and APPLICATION previously.
+- [[PR #1230]](https://github.com/spark/firmware/pull/1230) Safe Mode event was being published unconditionally introduced in 0.6.1-rc.1
+- [[PR #1231]](https://github.com/spark/firmware/pull/1231) [Electron] fixes double newline parser issue on G350 introduced in 428835a 0.6.1-rc.1
+
+
+
+## 0.6.1-rc.1
+
+### FEATURES
+
+- [[PR #1190]](https://github.com/spark/firmware/pull/1190) [[Implements #1114]](https://github.com/spark/firmware/issues/1114) Added ability to mirror MODE/SETUP button to any GPIO, available from time of boot, active high or low.
+- [[PR #1182]](https://github.com/spark/firmware/pull/1182) [[Fixes #687]](https://github.com/spark/firmware/issues/687) [[Docs]](https://prerelease-docs.particle.io/reference/firmware/electron/#setlistentimeout-) Added `WiFi.set|getListenTimeout()` | `Cellular.set|getListenTimeout()` to override the automatic new Listening Mode timeout (Wi-Fi = no timeout by default, Cellular = 5 minute timeout by default).
+- [[PR #1154]](https://github.com/spark/firmware/pull/1154) Added `low_battery` system event, which is generated when low battery condition is detected. This is when the battery falls below the SoC threshold (default 10%, max settable 32%).  The event can only be generated again if the system goes from a non-charging to charing state after the event is generated. The event doesn't carry any data.
+- [[PR #1144]](https://github.com/spark/firmware/pull/1144) Added tracking of ACKs for published events (see `WITH_ACK` flag for `Particle.publish()`)
+- [[PR #1135]](https://github.com/spark/firmware/pull/1135) [[Fixes #1116]](https://github.com/spark/firmware/issues/1116) [[Fixes #965]](https://github.com/spark/firmware/issues/965) New Time API's! `Time.isValid()` | `Particle.syncTimePending()` | `Particle.syncTimeDone()` | `Particle.timeSyncedLast()`
+- [[PR #1127]](https://github.com/spark/firmware/pull/1127) [[PR #1213]](https://github.com/spark/firmware/pull/1213) Added support for runtime logging configuration, which allows to enable logging on already running system via USB control requests. Disabled by default to save flash memory space. (note: this feature is not fully baked with tool support)
+- [[PR #1120]](https://github.com/spark/firmware/pull/1120) [[Implements #1059]](https://github.com/spark/firmware/issues/1059) [P1] Added extra spare pin to P1 (P1S6) with GPIO and PWM support.
+- [[PR #1204]](https://github.com/spark/firmware/pull/1204) [[Implements #1113]](https://github.com/spark/firmware/issues/1113) RGB LED pins can be mirrored to other PWM capable pins via `RGB.mirrorTo()`. Common Anode/Cathode LED and Bootloader compatible. See PR for usage.
+- [[PR #1205]](https://github.com/spark/firmware/pull/1205) [[Closes #569]](https://github.com/spark/firmware/issues/569) [[Closes #976]](https://github.com/spark/firmware/issues/976) [[Closes #1111]](https://github.com/spark/firmware/issues/1111) By implementing a centralized LED service and theme "engine" for system LED signaling, giving users the ability to apply custom LED colors and patterns for system events.
+
+### ENHANCEMENTS
+
+- [[PR #1191]](https://github.com/spark/firmware/pull/1191) Added more Arduino Library compatibility
+- [[PR #1188]](https://github.com/spark/firmware/pull/1188) [[Implements #1152]](https://github.com/spark/firmware/issues/1152) Added SPI API's: `SPISettings` | `SPI.beginTransaction()` | `SPI.endTransaction()`
+- [[PR #1169]](https://github.com/spark/firmware/pull/1169) Updated system communication logging with new logging API
+- [[PR #1160]](https://github.com/spark/firmware/pull/1160) [Electron] Modem USART paused via HW_FLOW_CONTROL (RTS) before going into sleep with SLEEP_NETWORK_STANDBY. Receives and buffers small messages while system sleeping.
+- [[PR #1159]](https://github.com/spark/firmware/pull/1159) [[Closes #1085]](https://github.com/spark/firmware/issues/1085) [[Closes #1054]](https://github.com/spark/firmware/issues/1054) Added support for GCC 5.4.x
+- [[PR #1151]](https://github.com/spark/firmware/pull/1151) [[Closes #977]](https://github.com/spark/firmware/issues/977) Added System events for cloud/network connection state changes
+- [[PR #1122]](https://github.com/spark/firmware/pull/1122) Attach to host even if Serial, USBSerial1 and Keyboard/Mouse are disabled, so that "Control Interface" that receives vendor requests is still accessible.
+- [[PR #1097]](https://github.com/spark/firmware/pull/1097) [[Implements #1032]](https://github.com/spark/firmware/issues/1032) When flashing (OTA/YModem) an invalid firmware binary (that the device ignores) it will post an event describing why the binary was not applied.
+- [[PR #1203]](https://github.com/spark/firmware/pull/1203) [[PR #1212]](https://github.com/spark/firmware/pull/1212) Automatic bootloader updates have returned to the Electron.  v9 bootloader has been added to firmware release >=0.6.1-rc.1 for Photon/P1/Electron.  After updating your system firmware, a new v9 bootloader will be applied to your device if required.  v9 includes support for SETUP/MODE button and RGB LED mirroring at the bootloader level of operation.  Also included are updates to USB DFU mode so that Windows users do not need to install separate drivers via Zadig.  Bootloader GREEN and WHITE LED flashing speeds (Firmware Reset modes) are faster now as well (you won't see these unless you have loaded user firmware to the Backup location).
+- [[PR #1125]](https://github.com/spark/firmware/pull/1125) Breaks on-going network connection when Sleep stop mode is called, thereby speeding up the time to entering sleep when using SYSTEM_THREAD(ENABLED).
+
+### BUGFIX
+
+- [[PR #1186]](https://github.com/spark/firmware/pull/1186) Fixed issue where USB `Serial` might deadlock when interrupts are disabled while using `DEBUG_BUILD=y`
+- [[PR #1179]](https://github.com/spark/firmware/pull/1179) [[Fixes #1178]](https://github.com/spark/firmware/issues/1178) [[Fixes #1060]](https://github.com/spark/firmware/issues/1160) [Electron] Bootloader build was failing, fixed and added to CI.
+- [[PR #1158]](https://github.com/spark/firmware/pull/1158) [[Fixes #1133]](https://github.com/spark/firmware/issues/1133) [Electron] Before sleeping, now waits for server sent confirmable messages to be acknowledged, in addition to previous behavior of device generated confirmable messages being acknowledged.  Reduces data usage.
+- [[PR #1156]](https://github.com/spark/firmware/pull/1156) [[Fixes #1155]](https://github.com/spark/firmware/pull/1156) System.sleep(30) wasn't reapplying power to the network device after set time.
+- [[PR #1147]](https://github.com/spark/firmware/pull/1147) [Electron] Fixed approx. -0.1V offset on FuelGauge().getVCell() readings
+- [[PR #1145]](https://github.com/spark/firmware/pull/1145) [[Fixes #973]](https://github.com/spark/firmware/issues/973) `Particle.connect()` now blocks `loop()` from running until `Particle.connected()` is `true` in single threaded SEMI_AUTOMATIC mode.
+- [[PR #1140]](https://github.com/spark/firmware/pull/1140) [[Fixes #1138]](https://github.com/spark/firmware/issues/1138) [[Fixes #1104]](https://github.com/spark/firmware/issues/1104) [Electron] Fixed modem USART and buffer handling
+- [[PR #1130]](https://github.com/spark/firmware/pull/1130) Particle.subscribe() used with same events but changing scope between PUBLIC and PRIVATE or vice versa would potentially result in non-registered subscriptions.  This was also crashing the GCC virtual device with a segfault when subscription checksums were calculated.
+
+### INTERNAL
+
+- [[PR #1196]](https://github.com/spark/firmware/pull/1196) Re-enable GNU extensions for libc globally. Fixes build with ARM GCC 4.9.3 Q1.
+- [[PR #1189]](https://github.com/spark/firmware/pull/1189) Typo caused a warning during compilation in wiring/no_fixture Cellular tests.
+- [[PR #1184]](https://github.com/spark/firmware/pull/1184) [Electron] moved cellular HAL and its direct dependencies from module 2 to module 3 to free up space (this is system-part3 was reduced in size, while system-part1 was increased)
+- [[PR #1167]](https://github.com/spark/firmware/pull/1167) [[Fixes #1036]](https://github.com/spark/firmware/issues/1036) [GCC Virtual Device] workaround for 100% CPU usage problem.
+- [[PR #1146]](https://github.com/spark/firmware/pull/1146) [[Closes #1040]](https://github.com/spark/firmware/issues/1040) Added asserts for checking that network calls are run on system thread.
+- [[PR #1134]](https://github.com/spark/firmware/pull/1134) [GCC Virtual Device] Error in socket_hal's socket_receive() logic caused random cloud connection errors.
+
+
 ## v0.6.0 (same as v0.6.0-rc.2)
 
 ### ENHANCEMENTS
